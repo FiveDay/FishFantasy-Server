@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 import KBEngine
 import kbesystem
+import json
 from KBEDebug import *
 
 def onInit(isReload):
@@ -27,3 +28,24 @@ def onFinish():
 	"""
 	pass
 
+def onTargetChanged(entityID):
+	"""
+	KBEngine method.
+	客户端选择了某个目标
+	"""
+	# DEBUG_MSG('onTargetChanged:: entityID = %i' % entityID)
+	kbesystem.targetMgr.setTargetID(entityID)
+	
+def kbengine_onEvent(eventID, args):
+	"""
+	KBEngine method.
+	app发出的事件
+	@param args: 自行约定
+	"""
+	DEBUG_MSG('kbengine_onEvent:: eventID = %s, args=%s' % (str(eventID), str(args)))
+	
+	if eventID == "reset":
+		kbesystem.eventMgr.fire("reset", 0)
+	elif eventID == "relive":
+		if KBEngine.player() != None:
+			KBEngine.player().relive()

@@ -7,9 +7,8 @@
 	
 	<!-- defined => kbe/res/server/kbengine_defs.xml -->
 	<dbmgr>
-		<host> localhost </host>
-		<databaseName> kbe </databaseName>
-		<port> 3306 </port>
+		<!-- <host> localhost </host> -->
+		<!-- <databaseName> kbe </databaseName> -->
 	</dbmgr>
 	
 	<cellapp>
