@@ -1,13 +1,6 @@
 # -*- coding: utf-8 -*-
 import KBEngine
-import random
-import time
-import d_spaces
-from AVATAR_INFOS import TAvatarInfos
-from AVATAR_INFOS import TAvatarInfosList
-from AVATAR_DATA import TAvatarData
 from KBEDebug import *
-import d_avatar_inittab
 
 class Account(KBEngine.Proxy):
 	"""
@@ -17,7 +10,6 @@ class Account(KBEngine.Proxy):
 	def __init__(self):
 		KBEngine.Proxy.__init__(self)
 		self.activeCharacter = None
-		self.relogin = time.time()
 		
 	def onTimer(self, id, userArg):
 		"""
@@ -75,157 +67,9 @@ class Account(KBEngine.Proxy):
 
 		DEBUG_MSG("Account[%i].onClientDeath:" % self.id)
 		self.destroy()
+				
 	
-	def reqAvatarList(self):
-		"""
-		exposed.
-		客户端请求查询角色列表
-		"""
-		DEBUG_MSG("Account[%i].reqAvatarList: size=%i." % (self.id, len(self.characters)))
-		self.client.onReqAvatarList(self.characters)
-				
-	def reqCreateAvatar(self, roleType, name):
-		"""
-		exposed.
-		客户端请求创建一个角色
-		"""
-		avatarinfo = TAvatarInfos()
-		avatarinfo.extend([0, "", 0, 0, TAvatarData().createFromDict({"param1" : 0, "param2" :b''})])
-			
-		"""
-		if name in all_avatar_names:
-			retcode = 2
-			self.client.onCreateAvatarResult(retcode, avatarinfo)
-			return
-		"""
-		
-		if len(self.characters) >= 3:
-			DEBUG_MSG("Account[%i].reqCreateAvatar:%s. character=%s.\n" % (self.id, name, self.characters))
-			self.client.onCreateAvatarResult(3, avatarinfo)
-			return
-		
-		""" 根据前端类别给出出生点
-		UNKNOWN_CLIENT_COMPONENT_TYPE	= 0,
-		CLIENT_TYPE_MOBILE				= 1,	// 手机类
-		CLIENT_TYPE_PC					= 2,	// pc， 一般都是exe客户端
-		CLIENT_TYPE_BROWSER				= 3,	// web应用， html5，flash
-		CLIENT_TYPE_BOTS				= 4,	// bots
-		CLIENT_TYPE_MINI				= 5,	// 微型客户端
-		"""
-		spaceUType = 1
-		
-		if self.getClientType() == 2:
-			spaceUType = 2
-		elif self.getClientType() == 5:
-			spaceUType = 3
-		else:
-			spaceUType = 1
-		
-		spaceData = d_spaces.datas.get(spaceUType)
-		
-		props = {
-			"name"				: name,
-			"roleType"			: roleType,
-			"level"				: 1,
-			"spaceUType"		: spaceUType,
-			"direction"			: (0, 0, d_avatar_inittab.datas[roleType]["spawnYaw"]),
-			"position"			: spaceData.get("spawnPos", (0,0,0))
-			}
-			
-		avatar = KBEngine.createBaseLocally('Avatar', props)
-		if avatar:
-			avatar.writeToDB(self._onCharacterSaved)
-		
-		DEBUG_MSG("Account[%i].reqCreateAvatar:%s. spaceUType=%i, spawnPos=%s.\n" % (self.id, name, avatar.cellData["spaceUType"], spaceData.get("spawnPos", (0,0,0))))
-		
-	def reqRemoveAvatar(self, name):
-		"""
-		exposed.
-		客户端请求删除一个角色
-		"""
-		DEBUG_MSG("Account[%i].reqRemoveAvatar: %s" % (self.id, name))
-		found = 0
-		for key, info in self.characters.items():
-			if info[1] == name:
-				del self.characters[key]
-				found = key
-				break
-		
-		self.client.onRemoveAvatar(found)
-		
-	def _onCharacterSaved(self, success, avatar):
-		"""
-		新建角色写入数据库回调
-		"""
-		INFO_MSG('Account::_onCharacterSaved:(%i) create avatar state: %i, %s, %i' % (self.id, success, avatar.cellData["name"], avatar.databaseID))
-		
-		# 如果此时账号已经销毁， 角色已经无法被记录则我们清除这个角色
-		if self.isDestroyed:
-			if avatar:
-				avatar.destroy(True)
-				
-			return
-			
-		avatarinfo = TAvatarInfos()
-		avatarinfo.extend([0, "", 0, 0, TAvatarData().createFromDict({"param1" : 0, "param2" :b''})])
 
-		if success:
-			info = TAvatarInfos()
-			info.extend([avatar.databaseID, avatar.cellData["name"], avatar.roleType, 1, TAvatarData().createFromDict({"param1" : 1, "param2" :b'1'})])
-			self.characters[avatar.databaseID] = info
-			avatarinfo[0] = avatar.databaseID
-			avatarinfo[1] = avatar.cellData["name"]
-			avatarinfo[2] = avatar.roleType
-			avatarinfo[3] = 1
-			self.writeToDB()
+			
 
-			avatar.destroy()
-		
-		if self.client:
-			self.client.onCreateAvatarResult(0, avatarinfo)
-			
-	def selectAvatarGame(self, dbid):
-		"""
-		exposed.
-		客户端选择某个角色进行游戏
-		"""
-		DEBUG_MSG("Account[%i].selectAvatarGame:%i. self.activeCharacter=%s" % (self.id, dbid, self.activeCharacter))
-		# 注意:使用giveClientTo的entity必须是当前baseapp上的entity
-		if self.activeCharacter is None:
-			if dbid in self.characters:
-				self.lastSelCharacter = dbid
-				player = KBEngine.createBaseFromDBID("Avatar", dbid, self.__onAvatarCreated)
-			else:
-				ERROR_MSG("Account[%i]::selectAvatarGame: not found dbid(%i)" % (self.id, dbid))
-		else:
-			self.giveClientTo(self.activeCharacter)
-			
-	def __onAvatarCreated(self, baseRef, dbid, wasActive):
-		"""
-		选择角色进入游戏时被调用
-		"""
-		if wasActive:
-			ERROR_MSG("Account::__onAvatarCreated:(%i): this character is in world now!" % (self.id))
-			return
-		if baseRef is None:
-			ERROR_MSG("Account::__onAvatarCreated:(%i): the character you wanted to created is not exist!" % (self.id))
-			return
-			
-		avatar = KBEngine.entities.get(baseRef.id)
-		if avatar is None:
-			ERROR_MSG("Account::__onAvatarCreated:(%i): when character was created, it died as well!" % (self.id))
-			return
-		
-		if self.isDestroyed:
-			ERROR_MSG("Account::__onAvatarCreated:(%i): i dead, will the destroy of Avatar!" % (self.id))
-			avatar.destroy()
-			return
-			
-		info = self.characters[dbid]
-		avatar.cellData["modelID"] = d_avatar_inittab.datas[info[2]]["modelID"]
-		avatar.cellData["modelScale"] = d_avatar_inittab.datas[info[2]]["modelScale"]
-		avatar.cellData["moveSpeed"] = d_avatar_inittab.datas[info[2]]["moveSpeed"]
-		avatar.accountEntity = self
-		self.activeCharacter = avatar
-		self.giveClientTo(avatar)
 		
